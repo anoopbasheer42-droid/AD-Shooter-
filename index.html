@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UAE Ad Shooter Command Center</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#171f30; --line:#232c40;
+    --text:#e6ecf7; --muted:#8b98b0; --accent:#3ea6ff;
+    --good:#2ecc71; --warn:#f5a623; --bad:#ff5c5c;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:15px; line-height:1.45; padding-bottom:40px;
+  }
+  header{
+    padding:18px 16px 12px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#111a2b,#0b0f17);
+    position:sticky; top:0; z-index:20;
+  }
+  header h1{margin:0; font-size:17px; letter-spacing:.06em; text-transform:uppercase}
+  header p{margin:3px 0 0; font-size:12px; color:var(--muted); letter-spacing:.04em}
+  .live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);
+        margin-right:6px;box-shadow:0 0 8px var(--good)}
+
+  nav{display:flex; gap:6px; overflow-x:auto; padding:10px 12px;
+      border-bottom:1px solid var(--line); background:var(--bg);
+      position:sticky; top:63px; z-index:19; scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{
+    flex:0 0 auto; background:var(--panel); color:var(--muted); border:1px solid var(--line);
+    padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  nav button.active{background:var(--accent); color:#04121f; border-color:var(--accent)}
+
+  main{padding:14px; max-width:1100px; margin:0 auto}
+  .view{display:none}
+  .view.active{display:block}
+
+  .card{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:14px; margin-bottom:14px;
+  }
+  .card h2{
+    margin:0 0 12px; font-size:12px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted); font-weight:700;
+  }
+
+  .grid{display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .tile{
+    background:var(--panel2); border:1px solid var(--line);
+    border-radius:12px; padding:12px;
+  }
+  .tile .label{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+  .tile .value{font-size:26px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums}
+  .tile.accent .value{color:var(--accent)}
+  .tile.good .value{color:var(--good)}
+  .tile.warn .value{color:var(--warn)}
+
+  .row{display:flex; justify-content:space-between; gap:12px; padding:7px 0;
+       border-bottom:1px dashed var(--line); font-size:14px}
+  .row:last-child{border-bottom:none}
+  .row .k{color:var(--muted)}
+  .row .v{font-weight:600; text-align:right}
+
+  .btn{
+    border:1px solid var(--line); background:var(--panel2); color:var(--text);
+    padding:11px 16px; border-radius:10px; font-size:13px; font-weight:600;
+    cursor:pointer; min-height:44px;
+  }
+  .btn.primary{background:var(--accent); color:#04121f; border-color:var(--accent)}
+  .btn.danger{background:transparent; color:var(--bad); border-color:#3a2130}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+
+  .pill{
+    display:inline-block; padding:3px 9px; border-radius:999px;
+    font-size:11px; font-weight:700; letter-spacing:.04em;
+  }
+  .pill.active{background:#0e3a26; color:var(--good)}
+  .pill.draft{background:#2a2f3d; color:var(--muted)}
+  .pill.paused{background:#3a2f10; color:var(--warn)}
+  .pill.new{background:#0e2a44; color:var(--accent)}
+  .pill.hot{background:#0e3a26; color:var(--good)}
+  .pill.cold{background:#2a2f3d; color:var(--muted)}
+  .pill.bad{background:#3a1720; color:var(--bad)}
+
+  .tablewrap{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -14px; padding:0 14px}
+  table{border-collapse:collapse; width:100%; min-width:640px; font-size:13px}
+  th{
+    text-align:left; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line);
+    white-space:nowrap; font-weight:700;
+  }
+  td{padding:10px; border-bottom:1px solid #1a2233; vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  td.num{font-variant-numeric:tabular-nums}
+
+  label{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+        color:var(--muted); margin:12px 0 5px; font-weight:700}
+  input,select,textarea{
+    width:100%; background:#0d1320; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit;
+    min-height:44px;
+  }
+  textarea{min-height:90px; resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--accent)}
+  .two{display:grid; gap:0 12px; grid-template-columns:1fr 1fr}
+  @media(max-width:520px){.two{grid-template-columns:1fr}}
+
+  .hint{font-size:12px; color:var(--muted); margin-top:8px}
+  .notice{
+    background:#1a1408; border:1px solid #3a2f10; color:#e5c98a;
+    padding:10px 12px; border-radius:10px; font-size:12.5px; margin-bottom:14px;
+  }
+  .empty{color:var(--muted); font-size:13px; padding:14px 0; text-align:center}
+  .bar{height:6px; background:#0d1320; border-radius:99px; overflow:hidden; margin-top:6px}
+  .bar span{display:block; height:100%; background:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UAE Ad Shooter Command Center</h1>
+  <p><span class="live"></span>Campaign &amp; Lead Management — Phase 1 Prototype</p>
+</header>
+
+<nav id="tabs">
+  <button data-view="overview" class="active">Overview</button>
+  <button data-view="companies">Companies</button>
+  <button data-view="campaigns">Campaigns</button>
+  <button data-view="leads">Leads</button>
+  <button data-view="analytics">Analytics</button>
+</nav>
+
+<main>
+
+  <!-- ================= OVERVIEW ================= -->
+  <section id="view-overview" class="view active">
+    <div class="notice">
+      Sample data for interface testing only. No messages are sent in Phase 1.
+    </div>
+
+    <div class="card">
+      <h2>Command Snapshot</h2>
+      <div class="grid" id="statGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Campaign Engine</h2>
+      <div id="activeCampaign"></div>
+      <div class="actions">
+        <button class="btn primary" onclick="go('campaigns')">CREATE CAMPAIGN</button>
+        <button class="btn" id="pauseBtn">PAUSE CAMPAIGN</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Responses</h2>
+      <div id="recentResponses"></div>
+    </div>
+  </section>
+
+  <!-- ================= COMPANIES ================= -->
+  <section id="view-companies" class="view">
+    <div class="card">
+      <h2>UAE Company Finder — Database</h2>
+      <div class="two">
+        <div>
+          <label>Emirate</label>
+          <select id="fEmirate" onchange="renderCompanies()">
+            <option value="">All emirates</option>
+          </select>
+        </div>
+        <div>
+          <label>Industry</label>
+          <select id="fIndustry" onchange="renderCompanies()">
+            <option value="">All industries</option>
+          </select>
+        </div>
+      </div>
+      <label>Contact eligibility</label>
+      <select id="fElig" onchange="renderCompanies()">
+        <option value="">All records</option>
+        <option value="Approved">Approved only</option>
+        <option value="Pending review">Pending review</option>
+        <option value="Not permitted">Not permitted</option>
+      </select>
+      <div class="hint">Only <strong>Approved</strong> contacts can be added to a campaign.</div>
+    </div>
+
+    <div class="card">
+      <h2 id="companyCount">Companies</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Company</th><th>Industry</th><th>Emirate</th>
+              <th>Email</th><th>Source</th><th>Eligibility</th><th>Opt-out</th>
+            </tr>
+          </thead>
+          <tbody id="companyRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CAMPAIGNS ================= -->
+  <section id="view-campaigns" class="view">
+    <div class="card">
+      <h2>Create New Campaign</h2>
+      <label>Campaign name</label>
+      <input id="cName" placeholder="UAE Business Promotion">
+
+      <label>Advertisement asset</label>
+      <input id="cAsset" type="file">
+      <div class="hint" id="assetHint">Image, video or PDF. Stored locally in Phase 1.</div>
+
+      <label>Message</label>
+      <textarea id="cMessage" placeholder="Enter your promotional message…"></textarea>
+
+      <div class="two">
+        <div>
+          <label>Target location</label>
+          <select id="cLocation"></select>
+        </div>
+        <div>
+          <label>Industry</label>
+          <select id="cIndustry"></select>
+        </div>
+      </div>
+
+      <div class="two">
+        <div>
+          <label>Distribution channel</label>
+          <select id="cChannel">
+            <option>Business Email</option>
+            <option disabled>WhatsApp Business (Phase 4)</option>
+          </select>
+        </div>
+        <div>
+          <label>Audience</label>
+          <select id="cAudience">
+            <option>Approved contacts only</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Schedule</label>
+      <input id="cSchedule" type="datetime-local">
+
+      <div class="actions">
+        <button class="btn ghost" onclick="saveCampaign('Draft')">SAVE DRAFT</button>
+        <button class="btn" onclick="previewCampaign()">PREVIEW</button>
+        <button class="btn primary" onclick="saveCampaign('Active')">LAUNCH CAMPAIGN</button>
+      </div>
+      <div class="hint" id="campaignHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>Campaign List</h2>
+      <div id="campaignList"></div>
+    </div>
+  </section>
+
+  <!-- ================= LEADS ================= -->
+  <section id="view-leads" class="view">
+    <div class="card">
+      <h2>Lead Collector &amp; CRM</h2>
+      <div class="grid" id="leadStats"></div>
+    </div>
+    <div class="card">
+      <h2>Lead Pipeline</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Lead ID</th><th>Company</th><th>Campaign</th><th>Email</th>
+              <th>Phone</th><th>Category</th><th>Verification</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="leadRows"></tbody>
+        </table>
+      </div>
+      <div class="hint">Phone numbers extracted from replies are stored as <strong>Unverified</strong> until checked.</div>
+    </div>
+  </section>
+
+  <!-- ================= ANALYTICS ================= -->
+  <section id="view-analytics" class="view">
+    <div class="card">
+      <h2>Funnel</h2>
+      <div id="funnel"></div>
+    </div>
+    <div class="card">
+      <h2>Performance Rates</h2>
+      <div id="rates"></div>
+      <div class="hint">Rates are calculated from recorded events only. Delivery metrics depend on provider reporting.</div>
+    </div>
+    <div class="card">
+      <h2>Data Controls</h2>
+      <div class="actions">
+        <button class="btn danger" onclick="resetData()">RESET SAMPLE DATA</button>
+      </div>
+      <div class="hint">In Phase 2 this is replaced by authenticated API calls to your backend.</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================
+   UAE AD SHOOTER — PHASE 1 PROTOTYPE
+   All data is local sample data. No network calls.
+   ============================================================ */
+
+const KEY = 'uaeAdShooter.v1';
+
+const EMIRATES = ['Dubai','Abu Dhabi','Sharjah','Ajman','Ras Al Khaimah','Fujairah','Umm Al Quwain'];
+const INDUSTRIES = ['Real Estate','Construction','Restaurants','Retail','Logistics','Travel','Interiors','Professional Services'];
+
+const SAMPLE = {
+  companies: [
+    {id:'C-001', name:'Example Trading LLC',      industry:'Retail',        emirate:'Dubai',      email:'info@exampletrading.ae',    phone:'+971 4 000 0001', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-14', optOut:false},
+    {id:'C-002', name:'Al Noor Contracting',      industry:'Construction',  emirate:'Sharjah',    email:'contact@alnoor-cont.ae',    phone:'+971 6 000 0002', source:'Company website',    eligibility:'Approved',       lastContacted:'',           optOut:false},
+    {id:'C-003', name:'Gulf Horizon Real Estate', industry:'Real Estate',   emirate:'Dubai',      email:'hello@gulfhorizon.ae',      phone:'+971 4 000 0003', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-10', optOut:false},
+    {id:'C-004', name:'Dune Logistics FZE',       industry:'Logistics',     emirate:'Ajman',      email:'ops@dunelogistics.ae',      phone:'',                source:'Licensed directory', eligibility:'Pending review', lastContacted:'',           optOut:false},
+    {id:'C-005', name:'Marina Bites Restaurant',  industry:'Restaurants',   emirate:'Dubai',      email:'book@marinabites.ae',       phone:'+971 4 000 0005', source:'Company website',    eligibility:'Approved',       lastContacted:'',           optOut:false},
+    {id:'C-006', name:'Falcon Retail Group',      industry:'Retail',        emirate:'Abu Dhabi',  email:'marketing@falconretail.ae', phone:'+971 2 000 0006', source:'Manual upload',      eligibility:'Not permitted',  lastContacted:'',           optOut:true },
+    {id:'C-007', name:'Oasis Travel & Tourism',   industry:'Travel',        emirate:'Dubai',      email:'sales@oasistravel.ae',      phone:'+971 4 000 0007', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-01', optOut:false},
+    {id:'C-008', name:'Skyline Interiors',        industry:'Interiors',     emirate:'Sharjah',    email:'info@skylineint.ae',        phone:'',                source:'Company website',    eligibility:'Pending review', lastContacted:'',           optOut:false}
+  ],
+  campaigns: [
+    {id:'CMP-001', name:'UAE Business Promotion', channel:'Business Email', status:'Active',
+     location:'Dubai', industry:'Real Estate', eligible:3, sent:9, asset:'promo-v1.jpg',
+     message:'Introducing our digital marketing packages for UAE real estate firms…', schedule:'2026-09-20 09:00'}
+  ],
+  messages: [
+    {id:'M-001', campaignId:'CMP-001', companyId:'C-001', status:'delivered'},
+    {id:'M-002', campaignId:'CMP-001', companyId:'C-003', status:'delivered'},
+    {id:'M-003', campaignId:'CMP-001', companyId:'C-005', status:'delivered'},
+    {id:'M-004', campaignId:'CMP-001', companyId:'C-007', status:'delivered'},
+    {id:'M-005', campaignId:'CMP-001', companyId:'C-002', status:'delivered'},
+    {id:'M-006', campaignId:'CMP-001', companyId:'C-008', status:'failed'},
+    {id:'M-007', campaignId:'CMP-001', companyId:'C-004', status:'delivered'},
+    {id:'M-008', campaignId:'CMP-001', companyId:'C-006', status:'failed'},
+    {id:'M-009', campaignId:'CMP-001', companyId:'C-003', status:'delivered'}
+  ],
+  responses: [
+    {id:'R-001', companyId:'C-003', campaignId:'CMP-001', category:'Interested',
+     text:'Hello, we are interested. Please send us more information. You can call our office at +971 50 123 4567.',
+     phone:'+971 50 123 4567', email:'hello@gulfhorizon.ae', receivedAt:'2026-09-21 10:12', handled:false},
+    {id:'R-002', companyId:'C-005', campaignId:'CMP-001', category:'Not interested',
+     text:'Thank you, we are not interested at this time.', phone:'', email:'book@marinabites.ae',
+     receivedAt:'2026-09-21 11:40', handled:false},
+    {id:'R-003', companyId:'C-007', campaignId:'CMP-001', category:'Interested',
+     text:'Please share pricing. Our number is +971 4 555 8899.', phone:'+971 4 555 8899',
+     email:'sales@oasistravel.ae', receivedAt:'2026-09-22 08:05', handled:false}
+  ],
+  leads: [
+    {id:'LEAD-0001', companyId:'C-003', campaignId:'CMP-001', contactName:'', email:'hello@gulfhorizon.ae',
+     phone:'+971 50 123 4567', category:'Interested', receivedAt:'2026-09-21 10:12',
+     verification:'Unverified', followUp:'Not contacted', status:'New', notes:'Requests service details'},
+    {id:'LEAD-0002', companyId:'C-007', campaignId:'CMP-001', contactName:'', email:'sales@oasistravel.ae',
+     phone:'+971 4 555 8899', category:'Interested', receivedAt:'2026-09-22 08:05',
+     verification:'Unverified', followUp:'Required', status:'Interested', notes:'Asked for pricing'}
+  ]
+};
+
+const STATUSES = ['New','Interested','Needs review','Follow-up required','Contacted',
+                  'Meeting scheduled','Converted','Not interested','Do not contact'];
+
+/* ---------------- state ---------------- */
+let db = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return structuredClone(SAMPLE);
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+function resetData(){
+  if(confirm('Reset all data back to the sample set?')){
+    db = structuredClone(SAMPLE); save(); renderAll();
+  }
+}
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const company = id => db.companies.find(c => c.id === id) || {name:'Unknown'};
+const campaign = id => db.campaigns.find(c => c.id === id) || {name:'—'};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1) + '%' : '—';
+
+function go(view){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+  $('view-' + view).classList.add('active');
+  document.querySelector(`#tabs button[data-view="${view}"]`).classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('#tabs button').forEach(b => {
+  b.onclick = () => go(b.dataset.view);
+});
+
+/* ---------------- derived metrics ---------------- */
+function metrics(){
+  const delivered = db.messages.filter(m => m.status === 'delivered').length;
+  const failed    = db.messages.filter(m => m.status === 'failed').length;
+  const replies   = db.responses.length;
+  const interested= db.responses.filter(r => r.category === 'Interested').length;
+  const leads     = db.leads.length;
+  const qualified = db.leads.filter(l => ['Contacted','Meeting scheduled','Converted'].includes(l.status)).length;
+  const converted = db.leads.filter(l => l.status === 'Converted').length;
+  const optOuts   = db.companies.filter(c => c.optOut).length;
+
+  return {
+    companies: db.companies.length,
+    approved:  db.companies.filter(c => c.eligibility === 'Approved').length,
+    messages:  db.messages.length,
+    delivered, failed, replies, interested, leads, qualified, converted, optOuts,
+    newLeads:  db.leads.filter(l => l.status === 'New').length,
+    followUps: db.leads.filter(l => l.followUp === 'Required').length
+  };
+}
+
+/* ---------------- renderers ---------------- */
+function renderStats(){
+  const m = metrics();
+  const tiles = [
+    ['Companies', m.companies, ''],
+    ['Messages',  m.messages,  'accent'],
+    ['Responses', m.replies,   'accent'],
+    ['New Leads', m.newLeads,  'good'],
+    ['Interested',m.interested,'good'],
+    ['Follow-ups',m.followUps, 'warn']
+  ];
+  $('statGrid').innerHTML = tiles.map(([label,value,cls]) =>
+    `<div class="tile ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
+  ).join('');
+}
+
+function renderActiveCampaign(){
+  const c = db.campaigns.find(x => x.status === 'Active') || db.campaigns[0];
+  if(!c){ $('activeCampaign').innerHTML = '<div class="empty">No campaigns yet.</div>'; return; }
+  $('activeCampaign').innerHTML = `
+    <div class="row"><span class="k">Campaign</span><span class="v">${esc(c.name)}</span></div>
+    <div class="row"><span class="k">Channel</span><span class="v">${esc(c.channel)}</span></div>
+    <div class="row"><span class="k">Status</span><span class="v"><span class="pill ${c.status.toLowerCase()}">${esc(c.status)}</span></span></div>
+    <div class="row"><span class="k">Eligible contacts</span><span class="v">${c.eligible}</span></div>
+    <div class="row"><span class="k">Messages sent</span><span class="v">${c.sent}</span></div>
+  `;
+  $('pauseBtn').disabled = c.status !== 'Active';
+  $('pauseBtn').onclick = () => { c.status = 'Paused'; save(); renderAll(); };
+}
+
+function renderRecentResponses(){
+  const list = db.responses.slice(0, 3);
+  if(!list.length){ $('recentResponses').innerHTML = '<div class="empty">No responses yet.</div>'; return; }
+  $('recentResponses').innerHTML = list.map(r => {
+    const co = company(r.companyId);
+    const lead = db.leads.find(l => l.companyId === r.companyId && l.campaignId === r.campaignId);
+    const cls = r.category === 'Interested' ? 'hot' : 'cold';
+    return `
+      <div style="padding:12px 0;border-bottom:1px dashed var(--line)">
+        <div class="row" style="border:none;padding:0">
+          <span class="v">${esc(co.name)}</span>
+          <span class="pill ${cls}">${esc(r.category)}</span>
+        </div>
+        <div style="font-size:13px;color:var(--muted);margin-top:6px">${esc(r.text)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">
+          Phone: ${r.phone ? esc(r.phone) + ' <em>(unverified)</em>' : 'not supplied'}
+        </div>
+        <div class="actions">
+          <button class="btn ghost" onclick="viewLead('${lead ? lead.id : ''}')">VIEW LEAD</button>
+          <button class="btn ghost" onclick="markContacted('${r.id}')">MARK CONTACTED</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function viewLead(id){
+  if(!id){ alert('No lead record linked to this response yet.'); return; }
+  go('leads');
+}
+
+function markContacted(responseId){
+  const r = db.responses.find(x => x.id === responseId);
+  if(!r) return;
+  r.handled = true;
+  const lead = db.leads.find(l => l.companyId === r.companyId && l.campaignId === r.campaignId);
+  if(lead){ lead.status = 'Contacted'; lead.followUp = 'Not contacted'; }
+  save(); renderAll();
+}
+
+function fillSelect(el, values, allLabel){
+  el.innerHTML = (allLabel ? `<option value="">${allLabel}</option>` : '')
+    + values.map(v => `<option>${v}</option>`).join('');
+}
+
+function renderCompanies(){
+  const fe = $('fEmirate').value, fi = $('fIndustry').value, fl = $('fElig').value;
+  const rows = db.companies.filter(c =>
+    (!fe || c.emirate === fe) &&
+    (!fi || c.industry === fi) &&
+    (!fl || c.eligibility === fl)
+  );
+  $('companyCount').textContent = `Companies — ${rows.length} shown`;
+  $('companyRows').innerHTML = rows.length ? rows.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong><br><span style="color:var(--muted);font-size:11px">${c.id}</span></td>
+      <td>${esc(c.industry)}</td>
+      <td>${esc(c.emirate)}</td>
+      <td>${esc(c.email)}</td>
+      <td style="color:var(--muted)">${esc(c.source)}</td>
+      <td><span class="pill ${c.eligibility === 'Approved' ? 'active' : c.eligibility === 'Not permitted' ? 'bad' : 'paused'}">${esc(c.eligibility)}</span></td>
+      <td>${c.optOut ? '<span class="pill bad">Opted out</span>' : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty">No companies match these filters.</td></tr>';
+}
+
+function renderCampaignList(){
+  if(!db.campaigns.length){ $('campaignList').innerHTML = '<div class="empty">No campaigns yet.</div>'; return; }
+  $('campaignList').innerHTML = db.campaigns.map(c => `
+    <div style="padding:12px 0;border-bottom:1px dashed var(--line)">
+      <div class="row" style="border:none;padding:0">
+        <span class="v">${esc(c.name)}</span>
+        <span class="pill ${c.status.toLowerCase()}">${esc(c.status)}</span>
+      </div>
+      <div class="row"><span class="k">Channel</span><span class="v">${esc(c.channel)}</span></div>
+      <div class="row"><span class="k">Target</span><span class="v">${esc(c.location)} · ${esc(c.industry)}</span></div>
+      <div class="row"><span class="k">Eligible</span><span class="v">${c.eligible}</span></div>
+      <div class="row"><span class="k">Asset</span><span class="v">${esc(c.asset || '—')}</span></div>
+      <div class="actions">
+        ${c.status === 'Active'
+          ? `<button class="btn" onclick="setCampaignStatus('${c.id}','Paused')">PAUSE</button>`
+          : `<button class="btn" onclick="setCampaignStatus('${c.id}','Active')">RESUME</button>`}
+        <button class="btn danger" onclick="setCampaignStatus('${c.id}','Cancelled')">STOP</button>
+      </div>
+    </div>`).join('');
+}
+
+function setCampaignStatus(id, status){
+  const c = db.campaigns.find(x => x.id === id);
+  if(!c) return;
+  if(status === 'Cancelled' && !confirm('Stop this campaign immediately?')) return;
+  c.status = status; save(); renderAll();
+}
+
+function saveCampaign(status){
+  const name = $('cName').value.trim();
+  const message = $('cMessage').value.trim();
+  const hint = $('campaignHint');
+
+  // --- pre-launch checks (Phase 3 replaces these with backend validation) ---
+  const problems = [];
+  if(!name) problems.push('campaign name is required');
+  if(!message) problems.push('message body is required');
+
+  const eligible = db.companies.filter(c =>
+    c.eligibility === 'Approved' && !c.optOut &&
+    (!$('#cLocation').value || true)
+  ).length;
+
+  if(problems.length){
+    hint.textContent = 'Blocked: ' + problems.join(', ') + '.';
+    hint.style.color = 'var(--bad)';
+    return;
+  }
+  if(status === 'Active' && eligible === 0){
+    hint.textContent = 'Blocked: no eligible approved contacts for this audience.';
+    hint.style.color = 'var(--bad)';
+    return;
+  }
+
+  const id = 'CMP-' + String(db.campaigns.length + 1).padStart(3,'0');
+  db.campaigns.push({
+    id, name, channel: $('cChannel').value, status,
+    location: $('cLocation').value, industry: $('cIndustry').value,
+    eligible, sent: 0,
+    asset: $('cAsset').files[0]?.name || 'none',
+    message, schedule: $('cSchedule').value || 'not scheduled'
+  });
+  save();
+
+  hint.textContent = status === 'Active'
+    ? `Campaign launched against ${eligible} eligible contacts. Distribution connects in Phase 3.`
+    : 'Draft saved.';
+  hint.style.color = 'var(--good)';
+
+  $('cName').value = ''; $('cMessage').value = '';
+  renderAll();
+}
+
+function previewCampaign(){
+  const name = $('cName').value.trim() || '(untitled)';
+  const msg  = $('cMessage').value.trim() || '(no message)';
+  alert(`CAMPAIGN PREVIEW\n\nName: ${name}\nChannel: ${$('cChannel').value}\nTarget: ${$('cLocation').value} · ${$('cIndustry').value}\nAudience: ${$('cAudience').value}\n\n---\n${msg}`);
+}
+
+function renderLeads(){
+  const m = metrics();
+  $('leadStats').innerHTML = [
+    ['Total Leads', m.leads, ''],
+    ['New', m.newLeads, 'accent'],
+    ['Interested', m.interested, 'good'],
+    ['Converted', m.converted, 'good']
+  ].map(([l,v,c]) => `<div class="tile ${c}"><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+
+  $('leadRows').innerHTML = db.leads.length ? db.leads.map(l => `
+    <tr>
+      <td style="color:var(--muted)">${esc(l.id)}</td>
+      <td><strong>${esc(company(l.companyId).name)}</strong></td>
+      <td>${esc(campaign(l.campaignId).name)}</td>
+      <td>${esc(l.email || '—')}</td>
+      <td>${esc(l.phone || '—')}</td>
+      <td><span class="pill ${l.category === 'Interested' ? 'hot' : 'cold'}">${esc(l.category)}</span></td>
+      <td><span class="pill ${l.verification === 'Unverified' ? 'paused' : 'active'}">${esc(l.verification)}</span></td>
+      <td>
+        <select onchange="setLeadStatus('${l.id}', this.value)" style="min-height:36px;padding:6px 8px;font-size:12px">
+          ${STATUSES.map(s => `<option ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty">No leads captured yet.</td></tr>';
+}
+
+function setLeadStatus(id, status){
+  const l = db.leads.find(x => x.id === id);
+  if(!l) return;
+  l.status = status;
+  if(status === 'Do not contact'){
+    const co = db.companies.find(c => c.id === l.companyId);
+    if(co) co.optOut = true;
+  }
+  save(); renderAll();
+}
+
+function renderAnalytics(){
+  const m = metrics();
+  const stages = [
+    ['Eligible companies', m.approved],
+    ['Messages attempted', m.messages],
+    ['Delivered',          m.delivered],
+    ['Replies',            m.replies],
+    ['Interested',         m.interested],
+    ['Leads captured',     m.leads],
+    ['Qualified leads',    m.qualified],
+    ['Conversions',        m.converted]
+  ];
+  const top = stages[0][1] || 1;
+  $('funnel').innerHTML = stages.map(([label, value]) => `
+    <div style="margin-bottom:12px">
+      <div class="row" style="border:none;padding:0 0 4px">
+        <span class="k">${label}</span><span class="v">${value}</span>
+      </div>
+      <div class="bar"><span style="width:${Math.min(100,(value/top)*100)}%"></span></div>
+    </div>`).join('');
+
+  $('rates').innerHTML = `
+    <div class="row"><span class="k">Reply rate</span><span class="v">${pct(m.replies, m.delivered)}</span></div>
+    <div class="row"><span class="k">Lead capture rate</span><span class="v">${pct(m.leads, m.delivered)}</span></div>
+    <div class="row"><span class="k">Conversion rate</span><span class="v">${pct(m.converted, m.qualified)}</span></div>
+    <div class="row"><span class="k">Delivery failures</span><span class="v">${m.failed}</span></div>
+    <div class="row"><span class="k">Opt-outs</span><span class="v">${m.optOuts}</span></div>
+    <div class="hint">Reply rate = replies ÷ delivered × 100</div>
+  `;
+}
+
+function renderAll(){
+  renderStats();
+  renderActiveCampaign();
+  renderRecentResponses();
+  renderCompanies();
+  renderCampaignList();
+  renderLeads();
+  renderAnalytics();
+}
+
+/* ---------------- init ---------------- */
+fillSelect($('fEmirate'), EMIRATES, 'All emirates');
+fillSelect($('fIndustry'), INDUSTRIES, 'All industries');
+fillSelect($('cLocation'), EMIRATES);
+fillSelect($('cIndustry'), INDUSTRIES);
+renderAll();
+</script>
+</body>
+</html>
