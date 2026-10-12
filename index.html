@@ -71,7 +71,7 @@
   .btn{
     border:1px solid var(--line); background:var(--panel2); color:var(--text);
     padding:11px 16px; border-radius:10px; font-size:13px; font-weight:600;
-    cursor:pointer; min-height:44px;
+    cursor:pointer; min-height:44px; display:inline-flex; align-items:center; justify-content:center;
   }
   .btn.primary{background:var(--accent); color:#04121f; border-color:var(--accent)}
   .btn.danger{background:transparent; color:var(--bad); border-color:#3a2130}
@@ -122,21 +122,33 @@
   .empty{color:var(--muted); font-size:13px; padding:14px 0; text-align:center}
   .bar{height:6px; background:#0d1320; border-radius:99px; overflow:hidden; margin-top:6px}
   .bar span{display:block; height:100%; background:var(--accent)}
+  
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);
+    z-index:100; align-items:center; justify-content:center; padding:14px;
+  }
+  .modal-overlay.active { display:flex; }
+  .modal-content {
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    width:100%; max-width:500px; max-height:90vh; overflow-y:auto; padding:16px;
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>UAE Ad Shooter Command Center</h1>
-  <p><span class="live"></span>Campaign &amp; Lead Management — Phase 1 Prototype</p>
+  <p><span class="live"></span>Campaign &amp; Lead Management — v1.1</p>
 </header>
 
 <nav id="tabs">
   <button data-view="overview" class="active">Overview</button>
   <button data-view="companies">Companies</button>
+  <button data-view="clients">Clients</button>
   <button data-view="campaigns">Campaigns</button>
   <button data-view="leads">Leads</button>
   <button data-view="analytics">Analytics</button>
+  <button data-view="data">Data</button>
 </nav>
 
 <main>
@@ -192,6 +204,9 @@
         <option value="Pending review">Pending review</option>
         <option value="Not permitted">Not permitted</option>
       </select>
+      <div class="actions">
+        <button class="btn primary" onclick="openModal('addCompanyModal')">+ ADD COMPANY</button>
+      </div>
       <div class="hint">Only <strong>Approved</strong> contacts can be added to a campaign.</div>
     </div>
 
@@ -211,12 +226,35 @@
     </div>
   </section>
 
+  <!-- ================= CLIENTS ================= -->
+  <section id="view-clients" class="view">
+    <div class="card">
+      <h2>Clients (Businesses you advertise for)</h2>
+      <div class="actions">
+        <button class="btn primary" onclick="openModal('addClientModal')">+ ADD CLIENT</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Client Name</th><th>Contact Email</th><th>Date Added</th></tr>
+          </thead>
+          <tbody id="clientRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= CAMPAIGNS ================= -->
   <section id="view-campaigns" class="view">
     <div class="card">
       <h2>Create New Campaign</h2>
       <label>Campaign name</label>
       <input id="cName" placeholder="UAE Business Promotion">
+
+      <label>Client</label>
+      <select id="cClient"></select>
 
       <label>Advertisement asset</label>
       <input id="cAsset" type="file">
@@ -282,7 +320,7 @@
           <thead>
             <tr>
               <th>Lead ID</th><th>Company</th><th>Campaign</th><th>Email</th>
-              <th>Phone</th><th>Category</th><th>Verification</th><th>Status</th>
+              <th>Phone</th><th>Category</th><th>Verification</th><th>Status</th><th>Notes</th>
             </tr>
           </thead>
           <tbody id="leadRows"></tbody>
@@ -303,29 +341,86 @@
       <div id="rates"></div>
       <div class="hint">Rates are calculated from recorded events only. Delivery metrics depend on provider reporting.</div>
     </div>
+  </section>
+
+  <!-- ================= DATA ================= -->
+  <section id="view-data" class="view">
     <div class="card">
-      <h2>Data Controls</h2>
-      <div class="actions">
-        <button class="btn danger" onclick="resetData()">RESET SAMPLE DATA</button>
+      <h2>Import / Export</h2>
+      <p class="hint">Use this to back up your dashboard or import a list of companies you collected.</p>
+      
+      <label>Export Current Data</label>
+      <button class="btn primary" onclick="exportData()">DOWNLOAD JSON BACKUP</button>
+
+      <label style="margin-top:20px">Import Companies (JSON)</label>
+      <input type="file" id="importFile" accept=".json" onchange="importData(event)">
+      <div class="hint">Upload a `companies.json` file to add them to your dashboard.</div>
+      
+      <div class="actions" style="margin-top:24px">
+        <button class="btn danger" onclick="resetData()">RESET ALL SAMPLE DATA</button>
       </div>
-      <div class="hint">In Phase 2 this is replaced by authenticated API calls to your backend.</div>
     </div>
   </section>
 
 </main>
 
+<!-- ================= MODALS ================= -->
+<div id="addCompanyModal" class="modal-overlay">
+  <div class="modal-content">
+    <h2>Add Company</h2>
+    <label>Company Name</label>
+    <input id="mCoName" placeholder="Example Trading LLC">
+    <div class="two">
+      <div><label>Industry</label><select id="mCoIndustry"></select></div>
+      <div><label>Emirate</label><select id="mCoEmirate"></select></div>
+    </div>
+    <div class="two">
+      <div><label>Email</label><input id="mCoEmail" placeholder="info@example.ae"></div>
+      <div><label>Phone</label><input id="mCoPhone" placeholder="+971 4 000 0000"></div>
+    </div>
+    <label>Source</label>
+    <input id="mCoSource" placeholder="e.g., Dubai DED directory">
+    <label>Eligibility</label>
+    <select id="mCoElig">
+      <option>Approved</option>
+      <option>Pending review</option>
+      <option>Not permitted</option>
+    </select>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('addCompanyModal')">CANCEL</button>
+      <button class="btn primary" onclick="addCompany()">SAVE COMPANY</button>
+    </div>
+  </div>
+</div>
+
+<div id="addClientModal" class="modal-overlay">
+  <div class="modal-content">
+    <h2>Add Client</h2>
+    <label>Client Name</label>
+    <input id="mClName" placeholder="Acme Digital Marketing">
+    <label>Contact Email</label>
+    <input id="mClEmail" placeholder="hello@acme.ae">
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('addClientModal')">CANCEL</button>
+      <button class="btn primary" onclick="addClient()">SAVE CLIENT</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
-   UAE AD SHOOTER — PHASE 1 PROTOTYPE
-   All data is local sample data. No network calls.
+   UAE AD SHOOTER — PHASE 1.1 PROTOTYPE
    ============================================================ */
 
-const KEY = 'uaeAdShooter.v1';
+const KEY = 'uaeAdShooter.v1.1';
 
 const EMIRATES = ['Dubai','Abu Dhabi','Sharjah','Ajman','Ras Al Khaimah','Fujairah','Umm Al Quwain'];
 const INDUSTRIES = ['Real Estate','Construction','Restaurants','Retail','Logistics','Travel','Interiors','Professional Services'];
 
 const SAMPLE = {
+  clients: [
+    {id:'CL-001', name:'Acme Digital Marketing', email:'hello@acme.ae', createdAt:'2026-09-01'}
+  ],
   companies: [
     {id:'C-001', name:'Example Trading LLC',      industry:'Retail',        emirate:'Dubai',      email:'info@exampletrading.ae',    phone:'+971 4 000 0001', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-14', optOut:false},
     {id:'C-002', name:'Al Noor Contracting',      industry:'Construction',  emirate:'Sharjah',    email:'contact@alnoor-cont.ae',    phone:'+971 6 000 0002', source:'Company website',    eligibility:'Approved',       lastContacted:'',           optOut:false},
@@ -337,7 +432,7 @@ const SAMPLE = {
     {id:'C-008', name:'Skyline Interiors',        industry:'Interiors',     emirate:'Sharjah',    email:'info@skylineint.ae',        phone:'',                source:'Company website',    eligibility:'Pending review', lastContacted:'',           optOut:false}
   ],
   campaigns: [
-    {id:'CMP-001', name:'UAE Business Promotion', channel:'Business Email', status:'Active',
+    {id:'CMP-001', clientId:'CL-001', name:'UAE Business Promotion', channel:'Business Email', status:'Active',
      location:'Dubai', industry:'Real Estate', eligible:3, sent:9, asset:'promo-v1.jpg',
      message:'Introducing our digital marketing packages for UAE real estate firms…', schedule:'2026-09-20 09:00'}
   ],
@@ -376,7 +471,6 @@ const SAMPLE = {
 const STATUSES = ['New','Interested','Needs review','Follow-up required','Contacted',
                   'Meeting scheduled','Converted','Not interested','Do not contact'];
 
-/* ---------------- state ---------------- */
 let db = load();
 
 function load(){
@@ -393,9 +487,9 @@ function resetData(){
   }
 }
 
-/* ---------------- helpers ---------------- */
 const $ = id => document.getElementById(id);
 const company = id => db.companies.find(c => c.id === id) || {name:'Unknown'};
+const client = id => db.clients.find(c => c.id === id) || {name:'No Client'};
 const campaign = id => db.campaigns.find(c => c.id === id) || {name:'—'};
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1) + '%' : '—';
@@ -410,6 +504,9 @@ function go(view){
 document.querySelectorAll('#tabs button').forEach(b => {
   b.onclick = () => go(b.dataset.view);
 });
+
+function openModal(id){ $(id).classList.add('active'); }
+function closeModal(id){ $(id).classList.remove('active'); }
 
 /* ---------------- derived metrics ---------------- */
 function metrics(){
@@ -452,6 +549,7 @@ function renderActiveCampaign(){
   const c = db.campaigns.find(x => x.status === 'Active') || db.campaigns[0];
   if(!c){ $('activeCampaign').innerHTML = '<div class="empty">No campaigns yet.</div>'; return; }
   $('activeCampaign').innerHTML = `
+    <div class="row"><span class="k">Client</span><span class="v">${esc(client(c.clientId).name)}</span></div>
     <div class="row"><span class="k">Campaign</span><span class="v">${esc(c.name)}</span></div>
     <div class="row"><span class="k">Channel</span><span class="v">${esc(c.channel)}</span></div>
     <div class="row"><span class="k">Status</span><span class="v"><span class="pill ${c.status.toLowerCase()}">${esc(c.status)}</span></span></div>
@@ -526,6 +624,47 @@ function renderCompanies(){
     </tr>`).join('') : '<tr><td colspan="7" class="empty">No companies match these filters.</td></tr>';
 }
 
+function renderClients(){
+  $('clientRows').innerHTML = db.clients.length ? db.clients.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong><br><span style="color:var(--muted);font-size:11px">${c.id}</span></td>
+      <td>${esc(c.email)}</td>
+      <td>${esc(c.createdAt)}</td>
+    </tr>`).join('') : '<tr><td colspan="3" class="empty">No clients added yet.</td></tr>';
+}
+
+function addCompany(){
+  const name = $('mCoName').value.trim();
+  if(!name) return alert('Company name is required');
+  const id = 'C-' + String(db.companies.length + 1).padStart(3,'0');
+  db.companies.push({
+    id, name,
+    industry: $('mCoIndustry').value,
+    emirate: $('mCoEmirate').value,
+    email: $('mCoEmail').value,
+    phone: $('mCoPhone').value,
+    source: $('mCoSource').value || 'Manual entry',
+    eligibility: $('mCoElig').value,
+    optOut: false,
+    lastContacted: ''
+  });
+  save(); closeModal('addCompanyModal'); renderAll();
+  $('mCoName').value = ''; $('mCoEmail').value = ''; $('mCoPhone').value = '';
+}
+
+function addClient(){
+  const name = $('mClName').value.trim();
+  if(!name) return alert('Client name is required');
+  const id = 'CL-' + String(db.clients.length + 1).padStart(3,'0');
+  db.clients.push({
+    id, name,
+    email: $('mClEmail').value,
+    createdAt: new Date().toISOString().split('T')[0]
+  });
+  save(); closeModal('addClientModal'); renderAll();
+  $('mClName').value = ''; $('mClEmail').value = '';
+}
+
 function renderCampaignList(){
   if(!db.campaigns.length){ $('campaignList').innerHTML = '<div class="empty">No campaigns yet.</div>'; return; }
   $('campaignList').innerHTML = db.campaigns.map(c => `
@@ -534,6 +673,7 @@ function renderCampaignList(){
         <span class="v">${esc(c.name)}</span>
         <span class="pill ${c.status.toLowerCase()}">${esc(c.status)}</span>
       </div>
+      <div class="row"><span class="k">Client</span><span class="v">${esc(client(c.clientId).name)}</span></div>
       <div class="row"><span class="k">Channel</span><span class="v">${esc(c.channel)}</span></div>
       <div class="row"><span class="k">Target</span><span class="v">${esc(c.location)} · ${esc(c.industry)}</span></div>
       <div class="row"><span class="k">Eligible</span><span class="v">${c.eligible}</span></div>
@@ -557,16 +697,16 @@ function setCampaignStatus(id, status){
 function saveCampaign(status){
   const name = $('cName').value.trim();
   const message = $('cMessage').value.trim();
+  const clientId = $('cClient').value;
   const hint = $('campaignHint');
 
-  // --- pre-launch checks (Phase 3 replaces these with backend validation) ---
   const problems = [];
   if(!name) problems.push('campaign name is required');
   if(!message) problems.push('message body is required');
+  if(!clientId) problems.push('client must be selected');
 
   const eligible = db.companies.filter(c =>
-    c.eligibility === 'Approved' && !c.optOut &&
-    (!$('#cLocation').value || true)
+    c.eligibility === 'Approved' && !c.optOut
   ).length;
 
   if(problems.length){
@@ -582,7 +722,7 @@ function saveCampaign(status){
 
   const id = 'CMP-' + String(db.campaigns.length + 1).padStart(3,'0');
   db.campaigns.push({
-    id, name, channel: $('cChannel').value, status,
+    id, clientId, name, channel: $('cChannel').value, status,
     location: $('cLocation').value, industry: $('cIndustry').value,
     eligible, sent: 0,
     asset: $('cAsset').files[0]?.name || 'none',
@@ -602,7 +742,7 @@ function saveCampaign(status){
 function previewCampaign(){
   const name = $('cName').value.trim() || '(untitled)';
   const msg  = $('cMessage').value.trim() || '(no message)';
-  alert(`CAMPAIGN PREVIEW\n\nName: ${name}\nChannel: ${$('cChannel').value}\nTarget: ${$('cLocation').value} · ${$('cIndustry').value}\nAudience: ${$('cAudience').value}\n\n---\n${msg}`);
+  alert(`CAMPAIGN PREVIEW\n\nName: ${name}\nClient: ${client($('cClient').value).name}\nChannel: ${$('cChannel').value}\nTarget: ${$('cLocation').value} · ${$('cIndustry').value}\n\n---\n${msg}`);
 }
 
 function renderLeads(){
@@ -622,13 +762,32 @@ function renderLeads(){
       <td>${esc(l.email || '—')}</td>
       <td>${esc(l.phone || '—')}</td>
       <td><span class="pill ${l.category === 'Interested' ? 'hot' : 'cold'}">${esc(l.category)}</span></td>
-      <td><span class="pill ${l.verification === 'Unverified' ? 'paused' : 'active'}">${esc(l.verification)}</span></td>
+      <td>
+        <button class="btn ghost" style="min-height:32px;padding:4px 8px;font-size:11px" 
+          onclick="toggleVerify('${l.id}')">
+          ${l.verification === 'Unverified' ? 'Verify' : 'Verified'}
+        </button>
+      </td>
       <td>
         <select onchange="setLeadStatus('${l.id}', this.value)" style="min-height:36px;padding:6px 8px;font-size:12px">
           ${STATUSES.map(s => `<option ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </td>
-    </tr>`).join('') : '<tr><td colspan="8" class="empty">No leads captured yet.</td></tr>';
+      <td><input value="${esc(l.notes || '')}" onchange="updateNotes('${l.id}', this.value)" style="min-height:36px;padding:6px 8px;font-size:12px;width:120px"></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty">No leads captured yet.</td></tr>';
+}
+
+function toggleVerify(id){
+  const l = db.leads.find(x => x.id === id);
+  if(!l) return;
+  l.verification = l.verification === 'Unverified' ? 'Verified' : 'Unverified';
+  save(); renderAll();
+}
+
+function updateNotes(id, val){
+  const l = db.leads.find(x => x.id === id);
+  if(!l) return;
+  l.notes = val; save();
 }
 
 function setLeadStatus(id, status){
@@ -673,11 +832,45 @@ function renderAnalytics(){
   `;
 }
 
+function exportData(){
+  const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'uae-ad-shooter-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if(Array.isArray(imported)){
+        db.companies = imported;
+        save(); renderAll();
+        alert(`Imported ${imported.length} companies successfully.`);
+      } else {
+        db = imported;
+        save(); renderAll();
+        alert('Full database backup restored successfully.');
+      }
+    } catch(err){
+      alert('Error reading file. Make sure it is valid JSON.');
+    }
+  };
+  reader.readAsText(file);
+}
+
 function renderAll(){
   renderStats();
   renderActiveCampaign();
   renderRecentResponses();
   renderCompanies();
+  renderClients();
   renderCampaignList();
   renderLeads();
   renderAnalytics();
@@ -688,6 +881,22 @@ fillSelect($('fEmirate'), EMIRATES, 'All emirates');
 fillSelect($('fIndustry'), INDUSTRIES, 'All industries');
 fillSelect($('cLocation'), EMIRATES);
 fillSelect($('cIndustry'), INDUSTRIES);
+fillSelect($('mCoIndustry'), INDUSTRIES);
+fillSelect($('mCoEmirate'), EMIRATES);
+fillSelect($('cClient'), []);
+
+// Re-populate client dropdown when clients change
+function refreshClientDropdown(){
+  const val = $('cClient').value;
+  $('cClient').innerHTML = db.clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if(val && db.clients.find(c => c.id === val)) $('cClient').value = val;
+}
+const origRenderClients = renderClients;
+renderClients = function(){
+  origRenderClients();
+  refreshClientDropdown();
+};
+
 renderAll();
 </script>
 </body>
