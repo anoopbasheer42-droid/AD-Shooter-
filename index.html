@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UAE Ad Shooter Command Center</title>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   :root{
     --bg:#0b0f17; --panel:#121826; --panel2:#171f30; --line:#232c40;
@@ -143,7 +144,7 @@
 
 <header>
   <h1>UAE Ad Shooter Command Center</h1>
-  <p><span class="live"></span>Campaign &amp; Lead Management — v1.2</p>
+  <p><span class="live"></span>Campaign &amp; Lead Management — v1.3 (Email Enabled)</p>
 </header>
 
 <nav id="tabs">
@@ -161,7 +162,7 @@
   <!-- ================= OVERVIEW ================= -->
   <section id="view-overview" class="view active">
     <div class="notice">
-      Sample data for interface testing only. No messages are sent in Phase 1.
+      Live dashboard. Emails are sent via EmailJS. Ensure contacts are approved before launching.
     </div>
 
     <div class="card">
@@ -305,6 +306,7 @@
         <button class="btn ghost" onclick="saveCampaign('Draft')">SAVE DRAFT</button>
         <button class="btn" onclick="previewCampaign()">PREVIEW</button>
         <button class="btn primary" onclick="saveCampaign('Active')">LAUNCH CAMPAIGN</button>
+        <button class="btn" style="background:#2ecc71;color:#04121f;" onclick="sendRealCampaign()">🚀 SEND REAL EMAILS</button>
       </div>
       <div class="hint" id="campaignHint"></div>
     </div>
@@ -354,10 +356,10 @@
   <!-- ================= DATA ================= -->
   <section id="view-data" class="view">
     <div class="card">
-      <h2>Import Companies from CSV</h2>
-      <p class="hint">Download a CSV from any UAE source (Dubai DED, ADGM, DGE GitHub, Yellow Pages). Import it here — the dashboard auto-detects columns.</p>
+      <h2>Import Companies from CSV / JSON</h2>
+      <p class="hint">Download a CSV or JSON file from any UAE source. Import it here — the dashboard auto-detects columns.</p>
       
-      <input type="file" id="csvFile" accept=".csv,text/csv" onchange="handleCSV(event)">
+      <input type="file" id="csvFile" accept=".csv,.json,text/csv,application/json" onchange="handleCSV(event)">
       
       <div class="hint">The parser detects: name, industry, emirate, email, phone, source. Anything it can't find is left blank.</div>
     </div>
@@ -434,10 +436,10 @@
 
 <script>
 /* ============================================================
-   UAE AD SHOOTER — PHASE 1.2 PROTOTYPE
+   UAE AD SHOOTER — PHASE 2 (EMAIL ENABLED)
    ============================================================ */
 
-const KEY = 'uaeAdShooter.v1.2';
+const KEY = 'uaeAdShooter.v1.3';
 
 const EMIRATES = ['Dubai','Abu Dhabi','Sharjah','Ajman','Ras Al Khaimah','Fujairah','Umm Al Quwain'];
 const INDUSTRIES = ['Real Estate','Construction','Restaurants','Retail','Logistics','Travel','Interiors','Professional Services'];
@@ -457,6 +459,15 @@ const EMIRATE_ALIASES = {
   'rak':'Ras Al Khaimah','fujairah':'Fujairah','umm al quwain':'Umm Al Quwain',
   'uaq':'Umm Al Quwain'
 };
+
+// ==========================================
+// EMAILJS CONFIGURATION
+// ==========================================
+const EMAILJS_PUBLIC_KEY = 'U-KuMLgHwbXh_m-Ew';
+const EMAILJS_SERVICE_ID = 'service_qxp8l8r';
+const EMAILJS_TEMPLATE_ID = 'template_r26ctah';
+
+emailjs.init(EMAILJS_PUBLIC_KEY);
 
 const SAMPLE = {
   clients: [
@@ -558,11 +569,10 @@ function openModal(id){ $(id).classList.add('active'); }
 function closeModal(id){ $(id).classList.remove('active'); }
 
 /* ============================================================
-   CSV PARSING — runs entirely in the browser
+   CSV / JSON PARSING
    ============================================================ */
 
 function parseCSV(text){
-  // Handle quoted fields with commas and newlines
   const rows = [];
   let row = [];
   let field = '';
@@ -634,90 +644,84 @@ function handleCSV(event){
   reader.onload = e => {
     try {
       const text = e.target.result;
-      const rows = parseCSV(text);
-      if(rows.length < 2){
-        alert('CSV file appears empty or malformed.');
-        return;
-      }
+      let companies = [];
+      let sourceLabel = file.name.replace(/\.(csv|json)$/i, '');
 
-      const headers = rows[0];
-      const idx = {
-        name:     findColumnIndex(headers, 'name'),
-        industry: findColumnIndex(headers, 'industry'),
-        emirate:  findColumnIndex(headers, 'emirate'),
-        email:    findColumnIndex(headers, 'email'),
-        phone:    findColumnIndex(headers, 'phone'),
-        source:   findColumnIndex(headers, 'source')
-      };
-
-      if(idx.name === -1){
-        alert('Could not detect a name column in this CSV.\n\nFound headers: ' + headers.join(', '));
-        return;
-      }
-
-      const sourceLabel = file.name.replace(/\.csv$/i, '');
-      const companies = [];
-      const seen = new Set();
-
-      for(let i = 1; i < rows.length; i++){
-        const r = rows[i];
-        const name = cleanName(r[idx.name]);
-        if(!name) continue;
-
-        const email = idx.email >= 0 ? cleanEmail(r[idx.email]) : '';
-        const key = name.toLowerCase() + '|' + email;
-        if(seen.has(key)) continue;
-        seen.add(key);
-
-        companies.push({
-          name,
-          industry: idx.industry >= 0 ? cleanName(r[idx.industry]) : '',
-          emirate:  idx.emirate  >= 0 ? normalizeEmirate(r[idx.emirate]) : '',
-          email,
-          phone:    idx.phone    >= 0 ? cleanPhone(r[idx.phone]) : '',
-          source:   sourceLabel,
+      if(file.name.toLowerCase().endsWith('.json')){
+        const json = JSON.parse(text);
+        const arr = Array.isArray(json) ? json : (json.companies || json.data || []);
+        companies = arr.map(c => ({
+          name: cleanName(c.name || c.company || c.company_name || c.trade_name || ''),
+          industry: cleanName(c.industry || c.sector || c.category || c.activity || ''),
+          emirate: normalizeEmirate(c.emirate || c.city || c.location || ''),
+          email: cleanEmail(c.email || c.email_address || c.contact_email || ''),
+          phone: cleanPhone(c.phone || c.phone_number || c.telephone || c.mobile || ''),
+          source: c.source || sourceLabel,
           eligibility: 'Pending review',
           optOut: false,
           lastContacted: ''
-        });
+        })).filter(c => c.name);
+      } else {
+        const rows = parseCSV(text);
+        if(rows.length < 2){ alert('CSV file appears empty or malformed.'); return; }
+        const headers = rows[0];
+        const idx = {
+          name: findColumnIndex(headers, 'name'),
+          industry: findColumnIndex(headers, 'industry'),
+          emirate: findColumnIndex(headers, 'emirate'),
+          email: findColumnIndex(headers, 'email'),
+          phone: findColumnIndex(headers, 'phone'),
+          source: findColumnIndex(headers, 'source')
+        };
+        if(idx.name === -1){ alert('Could not detect a name column.'); return; }
+        
+        const seen = new Set();
+        for(let i = 1; i < rows.length; i++){
+          const r = rows[i];
+          const name = cleanName(r[idx.name]);
+          if(!name) continue;
+          const email = idx.email >= 0 ? cleanEmail(r[idx.email]) : '';
+          const key = name.toLowerCase() + '|' + email;
+          if(seen.has(key)) continue;
+          seen.add(key);
+          companies.push({
+            name,
+            industry: idx.industry >= 0 ? cleanName(r[idx.industry]) : '',
+            emirate: idx.emirate >= 0 ? normalizeEmirate(r[idx.emirate]) : '',
+            email,
+            phone: idx.phone >= 0 ? cleanPhone(r[idx.phone]) : '',
+            source: sourceLabel,
+            eligibility: 'Pending review',
+            optOut: false,
+            lastContacted: ''
+          });
+        }
       }
 
-      if(!companies.length){
-        alert('No valid rows found in the CSV.');
-        return;
-      }
-
+      if(!companies.length){ alert('No valid rows found.'); return; }
       pendingCSVImport = companies;
-      showCSVPreview(companies, idx, headers);
+      showCSVPreview(companies);
     } catch(err){
-      alert('Error reading CSV: ' + err.message);
+      alert('Error reading file: ' + err.message);
     }
   };
   reader.readAsText(file);
   event.target.value = '';
 }
 
-function showCSVPreview(companies, idx, headers){
-  const detected = [];
-  for(const key in idx){
-    detected.push(`${key}: ${idx[key] >= 0 ? '✓ "' + headers[idx[key]] + '"' : '✗ not found'}`);
-  }
-
+function showCSVPreview(companies){
   $('csvSummary').innerHTML = `
     <div class="row"><span class="k">File contains</span><span class="v">${companies.length} unique companies</span></div>
-    <div class="row"><span class="k">Source label</span><span class="v">${esc(companies[0].source)}</span></div>
-    <div class="row"><span class="k">Detected columns</span><span class="v" style="font-size:11px;text-align:right">${detected.join('<br>')}</span></div>
+    <div class="row"><span class="k">Source</span><span class="v">${esc(companies[0].source)}</span></div>
   `;
 
   const preview = companies.slice(0, 5);
-  let html = '<table style="width:100%;font-size:11px"><tr><th>Name</th><th>Industry</th><th>Emirate</th><th>Email</th><th>Phone</th></tr>';
+  let html = '<table style="width:100%;font-size:11px"><tr><th>Name</th><th>Industry</th><th>Emirate</th><th>Email</th></tr>';
   preview.forEach(c => {
-    html += `<tr><td>${esc(c.name)}</td><td>${esc(c.industry)}</td><td>${esc(c.emirate)}</td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td></tr>`;
+    html += `<tr><td>${esc(c.name)}</td><td>${esc(c.industry)}</td><td>${esc(c.emirate)}</td><td>${esc(c.email)}</td></tr>`;
   });
   html += '</table>';
-  if(companies.length > 5){
-    html += `<div class="hint">…and ${companies.length - 5} more</div>`;
-  }
+  if(companies.length > 5){ html += `<div class="hint">…and ${companies.length - 5} more</div>`; }
   $('csvPreviewTable').innerHTML = html;
 
   openModal('csvPreviewModal');
@@ -732,7 +736,7 @@ function confirmCSVImport(){
   });
   save();
   closeModal('csvPreviewModal');
-  alert(`Imported ${pendingCSVImport.length} companies.\n\nAll are marked "Pending review".\nGo to the Companies tab to approve them.`);
+  alert(`Imported ${pendingCSVImport.length} companies.\n\nAll are marked "Pending review".`);
   pendingCSVImport = null;
   renderAll();
   go('companies');
@@ -742,7 +746,7 @@ function confirmCSVImport(){
    DERIVED METRICS
    ============================================================ */
 function metrics(){
-  const delivered = db.messages.filter(m => m.status === 'delivered').length;
+  const delivered = db.messages.filter(m => m.status === 'delivered' || m.status === 'sent').length;
   const failed    = db.messages.filter(m => m.status === 'failed').length;
   const replies   = db.responses.length;
   const interested= db.responses.filter(r => r.category === 'Interested').length;
@@ -878,7 +882,7 @@ function renderCompanies(){
     </tr>`).join('') : '<tr><td colspan="7" class="empty">No companies match these filters.</td></tr>';
 
   if(rows.length > 100){
-    $('companyRows').innerHTML += `<tr><td colspan="7" class="empty">Showing first 100 of ${rows.length}. Use the search box to narrow down.</td></tr>`;
+    $('companyRows').innerHTML += `<tr><td colspan="7" class="empty">Showing first 100 of ${rows.length}. Use search to narrow down.</td></tr>`;
   }
 }
 
@@ -951,7 +955,6 @@ function renderCampaignList(){
       <div class="row"><span class="k">Channel</span><span class="v">${esc(c.channel)}</span></div>
       <div class="row"><span class="k">Target</span><span class="v">${esc(c.location)} · ${esc(c.industry)}</span></div>
       <div class="row"><span class="k">Eligible</span><span class="v">${c.eligible}</span></div>
-      <div class="row"><span class="k">Asset</span><span class="v">${esc(c.asset || '—')}</span></div>
       <div class="actions">
         ${c.status === 'Active'
           ? `<button class="btn" onclick="setCampaignStatus('${c.id}','Paused')">PAUSE</button>`
@@ -987,7 +990,7 @@ function saveCampaign(status){
     return;
   }
   if(status === 'Active' && eligible === 0){
-    hint.textContent = 'Blocked: no eligible approved contacts for this audience.';
+    hint.textContent = 'Blocked: no eligible approved contacts.';
     hint.style.color = 'var(--bad)';
     return;
   }
@@ -1003,7 +1006,7 @@ function saveCampaign(status){
   save();
 
   hint.textContent = status === 'Active'
-    ? `Campaign launched against ${eligible} eligible contacts. Distribution connects in Phase 3.`
+    ? `Campaign launched against ${eligible} eligible contacts.`
     : 'Draft saved.';
   hint.style.color = 'var(--good)';
 
@@ -1100,7 +1103,6 @@ function renderAnalytics(){
     <div class="row"><span class="k">Conversion rate</span><span class="v">${pct(m.converted, m.qualified)}</span></div>
     <div class="row"><span class="k">Delivery failures</span><span class="v">${m.failed}</span></div>
     <div class="row"><span class="k">Opt-outs</span><span class="v">${m.optOuts}</span></div>
-    <div class="hint">Reply rate = replies ÷ delivered × 100</div>
   `;
 }
 
@@ -1142,6 +1144,77 @@ function renderAll(){
   renderCampaignList();
   renderLeads();
   renderAnalytics();
+}
+
+/* ============================================================
+   EMAIL SENDING — THE REAL DEAL
+   ============================================================ */
+async function sendRealCampaign() {
+  const campaignName = $('cName').value.trim();
+  const messageText = $('cMessage').value.trim();
+
+  if (!campaignName || !messageText) {
+    alert('Please enter a Campaign Name and Message first.');
+    return;
+  }
+
+  const targets = db.companies.filter(c =>
+    c.eligibility === 'Approved' && !c.optOut && c.email && c.email.includes('@')
+  );
+
+  if (targets.length === 0) {
+    alert('No approved companies with valid emails found.\n\nGo to Companies tab and approve some companies first.');
+    return;
+  }
+
+  const confirmed = confirm(
+    `Send "${campaignName}" to ${targets.length} approved companies?\n\n` +
+    `This will use ${targets.length} of your 200 monthly EmailJS credits.\n\n` +
+    `Continue?`
+  );
+  if (!confirmed) return;
+
+  let sent = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const co of targets) {
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_email: co.email,
+        subject: campaignName,
+        message: messageText,
+        email: co.email,
+        name: co.name
+      });
+
+      const msgId = 'M-' + String(db.messages.length + 1).padStart(3, '0');
+      db.messages.push({
+        id: msgId,
+        campaignId: 'CMP-001',
+        companyId: co.id,
+        status: 'sent',
+        sentAt: new Date().toISOString()
+      });
+
+      co.lastContacted = new Date().toISOString().split('T')[0];
+      sent++;
+
+      await new Promise(r => setTimeout(r, 500));
+    } catch (err) {
+      failed++;
+      errors.push(`${co.name}: ${err.text || err.message}`);
+    }
+  }
+
+  save();
+  renderAll();
+
+  let resultMsg = `📤 Campaign sent!\n\n✅ Sent: ${sent}\n❌ Failed: ${failed}`;
+  if (errors.length > 0) {
+    resultMsg += `\n\nFirst error:\n${errors[0]}`;
+  }
+  alert(resultMsg);
 }
 
 /* ---------------- init ---------------- */
