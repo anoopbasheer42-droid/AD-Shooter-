@@ -144,7 +144,7 @@
 
 <header>
   <h1>UAE Ad Shooter Command Center</h1>
-  <p><span class="live"></span>Campaign &amp; Lead Management — v1.3 (Email Enabled)</p>
+  <p><span class="live"></span>Campaign &amp; Lead Management — v1.4 (Auto-Sync Enabled)</p>
 </header>
 
 <nav id="tabs">
@@ -162,7 +162,7 @@
   <!-- ================= OVERVIEW ================= -->
   <section id="view-overview" class="view active">
     <div class="notice">
-      Live dashboard. Emails are sent via EmailJS. Ensure contacts are approved before launching.
+      Live dashboard. Emails are sent via EmailJS. Replies sync automatically from Gmail.
     </div>
 
     <div class="card">
@@ -267,7 +267,7 @@
 
       <label>Advertisement asset</label>
       <input id="cAsset" type="file">
-      <div class="hint" id="assetHint">Image, video or PDF. Stored locally in Phase 1.</div>
+      <div class="hint" id="assetHint">Image, video or PDF. Stored locally.</div>
 
       <label>Message</label>
       <textarea id="cMessage" placeholder="Enter your promotional message…"></textarea>
@@ -323,6 +323,14 @@
       <h2>Lead Collector &amp; CRM</h2>
       <div class="grid" id="leadStats"></div>
     </div>
+
+    <div class="card">
+      <h2>Sync Replies from Gmail</h2>
+      <p class="hint">Pulls new email replies from your Gmail inbox and adds them as leads automatically.</p>
+      <button class="btn primary" onclick="syncResponses()">📥 SYNC REPLIES NOW</button>
+      <div class="hint" id="syncStatus"></div>
+    </div>
+
     <div class="card">
       <h2>Lead Pipeline</h2>
       <div class="tablewrap">
@@ -349,7 +357,7 @@
     <div class="card">
       <h2>Performance Rates</h2>
       <div id="rates"></div>
-      <div class="hint">Rates are calculated from recorded events only. Delivery metrics depend on provider reporting.</div>
+      <div class="hint">Rates are calculated from recorded events only.</div>
     </div>
   </section>
 
@@ -361,7 +369,7 @@
       
       <input type="file" id="csvFile" accept=".csv,.json,text/csv,application/json" onchange="handleCSV(event)">
       
-      <div class="hint">The parser detects: name, industry, emirate, email, phone, source. Anything it can't find is left blank.</div>
+      <div class="hint">The parser detects: name, industry, emirate, email, phone, source.</div>
     </div>
 
     <div class="card">
@@ -426,7 +434,7 @@
     <h2>CSV Import Preview</h2>
     <div id="csvSummary" style="font-size:13px;margin-bottom:12px"></div>
     <div class="csv-preview" id="csvPreviewTable"></div>
-    <div class="hint">All imported companies are marked <strong>Pending review</strong>. You must approve them individually or in bulk before they can be used in a campaign.</div>
+    <div class="hint">All imported companies are marked <strong>Pending review</strong>.</div>
     <div class="actions">
       <button class="btn ghost" onclick="closeModal('csvPreviewModal')">CANCEL</button>
       <button class="btn primary" onclick="confirmCSVImport()">IMPORT COMPANIES</button>
@@ -436,10 +444,10 @@
 
 <script>
 /* ============================================================
-   UAE AD SHOOTER — PHASE 2 (EMAIL ENABLED)
+   UAE AD SHOOTER — v1.4 (AUTO-SYNC ENABLED)
    ============================================================ */
 
-const KEY = 'uaeAdShooter.v1.3';
+const KEY = 'uaeAdShooter.v1.4';
 
 const EMIRATES = ['Dubai','Abu Dhabi','Sharjah','Ajman','Ras Al Khaimah','Fujairah','Umm Al Quwain'];
 const INDUSTRIES = ['Real Estate','Construction','Restaurants','Retail','Logistics','Travel','Interiors','Professional Services'];
@@ -469,55 +477,25 @@ const EMAILJS_TEMPLATE_ID = 'template_r26ctah';
 
 emailjs.init(EMAILJS_PUBLIC_KEY);
 
+// ==========================================
+// GOOGLE APPS SCRIPT SYNC URL
+// Replace this with your deployed Web App URL
+// ==========================================
+const SYNC_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
+
 const SAMPLE = {
   clients: [
     {id:'CL-001', name:'Acme Digital Marketing', email:'hello@acme.ae', createdAt:'2026-09-01'}
   ],
-  companies: [
-    {id:'C-001', name:'Example Trading LLC',      industry:'Retail',        emirate:'Dubai',      email:'info@exampletrading.ae',    phone:'+971 4 000 0001', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-14', optOut:false},
-    {id:'C-002', name:'Al Noor Contracting',      industry:'Construction',  emirate:'Sharjah',    email:'contact@alnoor-cont.ae',    phone:'+971 6 000 0002', source:'Company website',    eligibility:'Approved',       lastContacted:'',           optOut:false},
-    {id:'C-003', name:'Gulf Horizon Real Estate', industry:'Real Estate',   emirate:'Dubai',      email:'hello@gulfhorizon.ae',      phone:'+971 4 000 0003', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-10', optOut:false},
-    {id:'C-004', name:'Dune Logistics FZE',       industry:'Logistics',     emirate:'Ajman',      email:'ops@dunelogistics.ae',      phone:'',                source:'Licensed directory', eligibility:'Pending review', lastContacted:'',           optOut:false},
-    {id:'C-005', name:'Marina Bites Restaurant',  industry:'Restaurants',   emirate:'Dubai',      email:'book@marinabites.ae',       phone:'+971 4 000 0005', source:'Company website',    eligibility:'Approved',       lastContacted:'',           optOut:false},
-    {id:'C-006', name:'Falcon Retail Group',      industry:'Retail',        emirate:'Abu Dhabi',  email:'marketing@falconretail.ae', phone:'+971 2 000 0006', source:'Manual upload',      eligibility:'Not permitted',  lastContacted:'',           optOut:true },
-    {id:'C-007', name:'Oasis Travel & Tourism',   industry:'Travel',        emirate:'Dubai',      email:'sales@oasistravel.ae',      phone:'+971 4 000 0007', source:'Licensed directory', eligibility:'Approved',       lastContacted:'2026-09-01', optOut:false},
-    {id:'C-008', name:'Skyline Interiors',        industry:'Interiors',     emirate:'Sharjah',    email:'info@skylineint.ae',        phone:'',                source:'Company website',    eligibility:'Pending review', lastContacted:'',           optOut:false}
-  ],
+  companies: [],
   campaigns: [
     {id:'CMP-001', clientId:'CL-001', name:'UAE Business Promotion', channel:'Business Email', status:'Active',
-     location:'Dubai', industry:'Real Estate', eligible:3, sent:9, asset:'promo-v1.jpg',
-     message:'Introducing our digital marketing packages for UAE real estate firms…', schedule:'2026-09-20 09:00'}
+     location:'Dubai', industry:'Real Estate', eligible:0, sent:0, asset:'',
+     message:'', schedule:''}
   ],
-  messages: [
-    {id:'M-001', campaignId:'CMP-001', companyId:'C-001', status:'delivered'},
-    {id:'M-002', campaignId:'CMP-001', companyId:'C-003', status:'delivered'},
-    {id:'M-003', campaignId:'CMP-001', companyId:'C-005', status:'delivered'},
-    {id:'M-004', campaignId:'CMP-001', companyId:'C-007', status:'delivered'},
-    {id:'M-005', campaignId:'CMP-001', companyId:'C-002', status:'delivered'},
-    {id:'M-006', campaignId:'CMP-001', companyId:'C-008', status:'failed'},
-    {id:'M-007', campaignId:'CMP-001', companyId:'C-004', status:'delivered'},
-    {id:'M-008', campaignId:'CMP-001', companyId:'C-006', status:'failed'},
-    {id:'M-009', campaignId:'CMP-001', companyId:'C-003', status:'delivered'}
-  ],
-  responses: [
-    {id:'R-001', companyId:'C-003', campaignId:'CMP-001', category:'Interested',
-     text:'Hello, we are interested. Please send us more information. You can call our office at +971 50 123 4567.',
-     phone:'+971 50 123 4567', email:'hello@gulfhorizon.ae', receivedAt:'2026-09-21 10:12', handled:false},
-    {id:'R-002', companyId:'C-005', campaignId:'CMP-001', category:'Not interested',
-     text:'Thank you, we are not interested at this time.', phone:'', email:'book@marinabites.ae',
-     receivedAt:'2026-09-21 11:40', handled:false},
-    {id:'R-003', companyId:'C-007', campaignId:'CMP-001', category:'Interested',
-     text:'Please share pricing. Our number is +971 4 555 8899.', phone:'+971 4 555 8899',
-     email:'sales@oasistravel.ae', receivedAt:'2026-09-22 08:05', handled:false}
-  ],
-  leads: [
-    {id:'LEAD-0001', companyId:'C-003', campaignId:'CMP-001', contactName:'', email:'hello@gulfhorizon.ae',
-     phone:'+971 50 123 4567', category:'Interested', receivedAt:'2026-09-21 10:12',
-     verification:'Unverified', followUp:'Not contacted', status:'New', notes:'Requests service details'},
-    {id:'LEAD-0002', companyId:'C-007', campaignId:'CMP-001', contactName:'', email:'sales@oasistravel.ae',
-     phone:'+971 4 555 8899', category:'Interested', receivedAt:'2026-09-22 08:05',
-     verification:'Unverified', followUp:'Required', status:'Interested', notes:'Asked for pricing'}
-  ]
+  messages: [],
+  responses: [],
+  leads: []
 };
 
 const STATUSES = ['New','Interested','Needs review','Follow-up required','Contacted',
@@ -540,9 +518,9 @@ function resetData(){
   }
 }
 function clearCompanies(){
-  if(confirm('Delete ALL companies? This cannot be undone. Clients, campaigns and leads will stay.')){
+  if(confirm('Delete ALL companies? This cannot be undone.')){
     db.companies = [];
-    db.messages = db.messages.filter(m => false);
+    db.messages = [];
     save(); renderAll();
   }
 }
@@ -736,7 +714,7 @@ function confirmCSVImport(){
   });
   save();
   closeModal('csvPreviewModal');
-  alert(`Imported ${pendingCSVImport.length} companies.\n\nAll are marked "Pending review".`);
+  alert(`Imported ${pendingCSVImport.length} companies.`);
   pendingCSVImport = null;
   renderAll();
   go('companies');
@@ -816,26 +794,8 @@ function renderRecentResponses(){
         <div style="font-size:12px;color:var(--muted);margin-top:6px">
           Phone: ${r.phone ? esc(r.phone) + ' <em>(unverified)</em>' : 'not supplied'}
         </div>
-        <div class="actions">
-          <button class="btn ghost" onclick="viewLead('${lead ? lead.id : ''}')">VIEW LEAD</button>
-          <button class="btn ghost" onclick="markContacted('${r.id}')">MARK CONTACTED</button>
-        </div>
       </div>`;
   }).join('');
-}
-
-function viewLead(id){
-  if(!id){ alert('No lead record linked to this response yet.'); return; }
-  go('leads');
-}
-
-function markContacted(responseId){
-  const r = db.responses.find(x => x.id === responseId);
-  if(!r) return;
-  r.handled = true;
-  const lead = db.leads.find(l => l.companyId === r.companyId && l.campaignId === r.campaignId);
-  if(lead){ lead.status = 'Contacted'; lead.followUp = 'Not contacted'; }
-  save(); renderAll();
 }
 
 function fillSelect(el, values, allLabel){
@@ -1147,7 +1107,7 @@ function renderAll(){
 }
 
 /* ============================================================
-   EMAIL SENDING — THE REAL DEAL
+   EMAIL SENDING
    ============================================================ */
 async function sendRealCampaign() {
   const campaignName = $('cName').value.trim();
@@ -1163,7 +1123,7 @@ async function sendRealCampaign() {
   );
 
   if (targets.length === 0) {
-    alert('No approved companies with valid emails found.\n\nGo to Companies tab and approve some companies first.');
+    alert('No approved companies with valid emails found.');
     return;
   }
 
@@ -1215,6 +1175,90 @@ async function sendRealCampaign() {
     resultMsg += `\n\nFirst error:\n${errors[0]}`;
   }
   alert(resultMsg);
+}
+
+/* ============================================================
+   GOOGLE APPS SCRIPT SYNC — AUTO RESPONSE DETECTION
+   ============================================================ */
+async function syncResponses() {
+  const status = $('syncStatus');
+
+  if (SYNC_URL === 'PASTE_YOUR_WEB_APP_URL_HERE') {
+    status.textContent = '❌ Please set your SYNC_URL in the code first.';
+    status.style.color = 'var(--bad)';
+    return;
+  }
+
+  status.textContent = '⏳ Syncing from Gmail...';
+  status.style.color = 'var(--muted)';
+
+  try {
+    const res = await fetch(SYNC_URL);
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error('Script returned an error');
+    }
+
+    let newLeads = 0;
+    let newResponses = 0;
+
+    for (const r of data.responses) {
+      const exists = db.responses.find(x => x.id === r.id);
+      if (exists) continue;
+
+      const matchedCompany = db.companies.find(c =>
+        c.email && c.email.toLowerCase() === r.fromEmail.toLowerCase()
+      );
+
+      db.responses.push({
+        id: r.id,
+        companyId: matchedCompany ? matchedCompany.id : null,
+        campaignId: 'CMP-001',
+        category: 'Needs review',
+        text: r.body,
+        phone: r.phone,
+        email: r.fromEmail,
+        receivedAt: r.receivedAt,
+        handled: false
+      });
+      newResponses++;
+
+      const subj = (r.subject || '').toLowerCase();
+      const isBounce = subj.includes('delivery') || subj.includes('failure') ||
+                       subj.includes('undelivered') || subj.includes('mailer-daemon') ||
+                       r.fromEmail.toLowerCase().includes('mailer-daemon');
+
+      if (!isBounce) {
+        const leadId = 'LEAD-' + String(db.leads.length + 1).padStart(4, '0');
+        db.leads.push({
+          id: leadId,
+          companyId: matchedCompany ? matchedCompany.id : null,
+          campaignId: 'CMP-001',
+          contactName: r.fromName || '',
+          email: r.fromEmail,
+          phone: r.phone || '',
+          category: 'Needs review',
+          receivedAt: r.receivedAt,
+          verification: 'Unverified',
+          followUp: 'Required',
+          status: 'New',
+          notes: r.subject
+        });
+        newLeads++;
+      }
+    }
+
+    save();
+    renderAll();
+
+    status.textContent = `✅ Synced: ${newResponses} new replies, ${newLeads} new leads`;
+    status.style.color = 'var(--good)';
+
+  } catch (err) {
+    status.textContent = '❌ Sync failed: ' + err.message;
+    status.style.color = 'var(--bad)';
+  }
 }
 
 /* ---------------- init ---------------- */
